@@ -40,14 +40,12 @@ This project enables users to spell out words and build sentences in real time u
    ```bash
    pip install -r requirements.txt
    ```
-3. **(Optional) Download or place your demo video and images in the `assets/` folder.**
 
----
 
 ## 💡 Usage
 - Run the main script:
   ```bash
-  python app.py
+  python Onworking.py
   ```
 - Show ASL gestures to your webcam.
 - Press `SPACE` to complete a word, `ENTER` to complete a sentence, and `ESC` to exit.
@@ -63,8 +61,8 @@ This project enables users to spell out words and build sentences in real time u
 ---
 
 ## 📂 Assets
-- Place your demo video as `assets/demo.mp4`.
-- Place the provided images as `assets/image1.jpg`, `assets/image2.jpg`, `assets/image3.jpg`, `assets/image4.jpg`.
+- demo video in  `assets/demo.mp4`.
+- Demo images as `assets/image1.jpg`, `assets/image2.jpg`, `assets/image3.jpg`, `assets/image4.jpg`.
 
 ---
 
