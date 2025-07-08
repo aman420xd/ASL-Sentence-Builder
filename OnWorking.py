@@ -23,7 +23,7 @@ is_speaking = False
 
 def speak_text(text):
     """Convert text to speech using gTTS and play it"""
-    def _speak():
+    def _speak(text_to_speak):
         global is_speaking
         try:
             is_speaking = True
@@ -32,11 +32,39 @@ def speak_text(text):
             temp_path = temp_file.name
             temp_file.close()
             
+            # Fix for gTTS reading letters individually - convert to normal English
+            if len(text_to_speak) > 1 and text_to_speak.isupper():
+                # If it's a word made of uppercase letters, convert to normal English
+                # For example: "AMAN" -> "Aman", "HOW" -> "How"
+                normal_text = text_to_speak.capitalize()
+                
+                # Special cases for common words to make them sound more natural
+                word_mapping = {
+                    "HOW": "How",
+                    "ARE": "Are", 
+                    "YOU": "You",
+                    "HELLO": "Hello",
+                    "WORLD": "World",
+                    "NAME": "Name",
+                    "GOOD": "Good",
+                    "MORNING": "Morning",
+                    "NIGHT": "Night",
+                    "THANK": "Thank",
+                    "PLEASE": "Please"
+                }
+                
+                if text_to_speak in word_mapping:
+                    text_to_speak = word_mapping[text_to_speak]
+                else:
+                    text_to_speak = normal_text
+                    
+                print(f"Speaking: '{text_to_speak}' as '{text_to_speak}'")
+            
             # Retry mechanism for gTTS
             for attempt in range(3):  # Retry up to 3 times
                 try:
                     # Generate speech
-                    tts = gTTS(text=text, lang='en')
+                    tts = gTTS(text=text_to_speak, lang='en')
                     tts.save(temp_path)
                     break
                 except Exception as e:
@@ -68,7 +96,7 @@ def speak_text(text):
         speech_queue.put(text)
     else:
         # Start a new thread for speaking to avoid blocking
-        threading.Thread(target=_speak).start()
+        threading.Thread(target=_speak, args=(text,)).start()
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -87,11 +115,11 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, args.height)
 
     # Configuration
-    REQUIRED_CONSECUTIVE_FRAMES = 40  # Frames needed to accept a character
-    WORD_DELAY = 5                 # Seconds before auto-adding space
-    SENTENCE_DELAY = 10             # Seconds before speaking sentence
-    RESET_DELAY = 15                # Seconds before resetting everything
-    INPUT_COOLDOWN = 5              # Seconds before accepting new input after recognition
+    REQUIRED_CONSECUTIVE_FRAMES = 40  # Frames needed to accept a character (increased for better accuracy)
+    WORD_DELAY = 999               # Disabled automatic word completion (use SPACE instead)
+    SENTENCE_DELAY = 999           # Disabled automatic sentence completion (use ENTER instead)
+    RESET_DELAY = 15               # Seconds before resetting everything (increased)
+    INPUT_COOLDOWN = 0.2           # Seconds before accepting new input (reduced for less lag)
 
     # State variables
     current_sentence = []
@@ -107,6 +135,7 @@ def main():
     input_cooldown = 0               # Time when input will be accepted again
     last_spoken_word = ""            # Track last spoken word to avoid repetition
     gesture_detected = False         # Track if a gesture is detected
+    gesture_change_cooldown = 0      # Time when new gesture can be accepted
 
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
@@ -129,6 +158,26 @@ def main():
         key = cv.waitKey(10)
         if key == 27:  # ESC
             break
+        elif key == 32:  # SPACE key - Complete current word
+            if current_word:
+                confirmed_word = ''.join(current_word)
+                print(f"SPACE pressed - Word completed: '{confirmed_word}'")  # Debug
+                current_word = []
+                if confirmed_word:
+                    current_sentence.append(confirmed_word)
+                    speak_text(confirmed_word)
+                    confirmed_word = ""
+        elif key == 13:  # ENTER key - Complete sentence
+            if current_word:
+                confirmed_word = ''.join(current_word)
+                current_word = []
+            if confirmed_word:
+                current_sentence.append(confirmed_word)
+                confirmed_word = ""
+            if current_sentence:
+                pending_sentence = ' '.join(current_sentence)
+                speak_text(pending_sentence)
+                current_sentence = []
         number, mode = select_mode(key, mode)
 
         ret, image = cap.read()
@@ -148,7 +197,7 @@ def main():
         # Reset gesture_detected flag
         gesture_detected = False
 
-        if results.multi_hand_landmarks and current_time >= input_cooldown:
+        if results.multi_hand_landmarks and current_time >= input_cooldown and current_time >= gesture_change_cooldown:
             for hand_landmarks in results.multi_hand_landmarks:
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
                 pre_processed = pre_process_landmark(landmark_list)
@@ -159,96 +208,32 @@ def main():
                 if gesture == current_gesture:
                     consecutive_frames += 1
                 else:
+                    # New gesture detected - reset and add cooldown
                     current_gesture = gesture
                     consecutive_frames = 1
+                    gesture_change_cooldown = current_time + 1.0  # 1 second cooldown for gesture change
+                    print(f"Gesture changed to: '{gesture}' - Cooldown active")  # Debug
 
                 # Mark gesture as detected
                 gesture_detected = True
 
                 # Only process if we have enough consecutive frames
                 if consecutive_frames >= REQUIRED_CONSECUTIVE_FRAMES:
-                    # Only add character if it's different or enough time has passed
-                    if (gesture != last_character or 
-                        time_since_last_gesture > 0.5):
+                    # Only add character if it's different from the last one
+                    if gesture != last_character:
                         
-                        if gesture == "Space":
-                            if current_word:
-                                confirmed_word = ''.join(current_word)
-                                current_word = []
-                                input_cooldown = current_time + INPUT_COOLDOWN  # Add cooldown
-                        elif gesture == "Del":
-                            if current_word:
-                                current_word = current_word[:-1]
-                            elif confirmed_word:
-                                confirmed_word = confirmed_word[:-1]
-                            elif current_sentence:
-                                current_sentence.pop()
-                            input_cooldown = current_time + INPUT_COOLDOWN  # Add cooldown
-                        elif gesture not in ["Space", "Del"]:
-                            current_word.append(gesture)
-                            input_cooldown = current_time + INPUT_COOLDOWN  # Add cooldown
+                        # Since we only have A-Z letters, treat all gestures as letters
+                        current_word.append(gesture)
+                        print(f"Letter added: '{gesture}' - Current word: {''.join(current_word)}")  # Debug
+                        input_cooldown = current_time + INPUT_COOLDOWN  # Add cooldown
                         
                         last_character = gesture
                         last_gesture_time = current_time
                         last_handled_time = current_time
                         reset_timer = current_time
 
-        # Handle timing-based actions only when no gesture is detected
-        if not gesture_detected:
-            # Sentence completion logic
-            if time_since_last_handled > SENTENCE_DELAY and (current_sentence or confirmed_word or current_word):
-                # Add any pending word to sentence
-                if current_word:
-                    confirmed_word = ''.join(current_word)
-                    current_word = []
-                
-                if confirmed_word:
-                    current_sentence.append(confirmed_word)
-                    confirmed_word = ""
-                
-                # Prepare the complete sentence for speaking
-                if current_sentence:
-                    pending_sentence = ' '.join(current_sentence)
-                    speak_text(pending_sentence)
-                    current_sentence = []
-                
-                last_handled_time = current_time
-                reset_timer = current_time
-            
-            # Word completion logic
-            elif time_since_last_handled > WORD_DELAY and (confirmed_word or current_word):
-                if current_word:
-                    confirmed_word = ''.join(current_word)
-                    current_word = []
-                
-                if confirmed_word and confirmed_word != last_spoken_word:
-                    current_sentence.append(confirmed_word)
-                    speak_text(confirmed_word)  # Speak the completed word
-                    last_spoken_word = confirmed_word
-                    confirmed_word = ""
-                
-                last_handled_time = current_time
-                reset_timer = current_time
-
-        # Reset timers if gesture is detected
-        if gesture_detected:
-            last_handled_time = current_time
-            reset_timer = current_time
-
-        # Handle reset logic
-        if time_since_reset > RESET_DELAY:
-            if current_sentence or confirmed_word or current_word:
-                pending_sentence = ' '.join(current_sentence + [confirmed_word] + [''.join(current_word)]).strip()
-                if pending_sentence:
-                    speak_text(pending_sentence)
-            current_sentence = []
-            current_word = []
-            confirmed_word = ""
-            pending_sentence = ""
-            last_character = ""
-            current_gesture = None
-            consecutive_frames = 0
-            reset_timer = current_time
+        # Manual control only - no automatic timing
+        # User controls everything with SPACE and ENTER keys
 
         # Draw hand landmarks and info
         if results.multi_hand_landmarks:
@@ -262,6 +247,9 @@ def main():
                     results.multi_handedness[0], 
                     f"{current_gesture or 'None'} ({consecutive_frames}/{REQUIRED_CONSECUTIVE_FRAMES})"
                 )
+        else:
+            # No hand detected, allow repeated letters by resetting last_character
+            last_character = ""
 
         # Display current state
         display_height = debug_image.shape[0]
@@ -290,27 +278,8 @@ def main():
         cv.putText(debug_image, sentence_text, sentence_org, font, font_scale, (255, 255, 255), thickness)
         # --- End bottom left ---
 
-        # --- Show Word Delay and Sentence Delay at Top Right ---
-        word_delay_left = max(0, int(WORD_DELAY - (current_time - last_handled_time)))
-        sentence_delay_left = max(0, int(SENTENCE_DELAY - (current_time - last_handled_time)))
-        text1 = f"Word Delay: {word_delay_left}s"
-        text2 = f"Sentence Delay: {sentence_delay_left}s"
-        font_delay = cv.FONT_HERSHEY_SIMPLEX
-        font_scale_delay = 0.7
-        thickness_delay = 2
-
-        # Calculate text sizes
-        (text1_width, _), _ = cv.getTextSize(text1, font_delay, font_scale_delay, thickness_delay)
-        (text2_width, _), _ = cv.getTextSize(text2, font_delay, font_scale_delay, thickness_delay)
-
-        margin_right = 20
-        x1 = display_width - text1_width - margin_right
-        x2 = display_width - text2_width - margin_right
-        y1 = margin_right + 30
-        y2 = margin_right + 60
-
-        cv.putText(debug_image, text1, (x1, y1), font_delay, font_scale_delay, (0, 255, 255), thickness_delay)
-        cv.putText(debug_image, text2, (x2, y2), font_delay, font_scale_delay, (0, 255, 0), thickness_delay)
+        # --- Remove Manual Control Status and Instructions Overlays ---
+        # (No overlays at top right or instructions list)
         # --- End of delay display ---
 
         cv.imshow("ASL Sentence Builder", debug_image)

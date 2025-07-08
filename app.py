@@ -92,6 +92,10 @@ def main():
         if key == 27:  # ESC
             break
         number, mode = select_mode(key, mode)
+        
+        # Debug: Print key pressed
+        if key != -1:
+            print(f"Key pressed: {key} (char: {chr(key) if 32 <= key <= 126 else 'non-printable'}), Mode: {mode}, Number: {number}")
 
         # Camera capture #####################################################
         ret, image = cap.read()
@@ -217,8 +221,9 @@ def main():
 
 def select_mode(key, mode):
     number = -1
-    if 65 <= key <= 90:  # A ~ B
+    if 65 <= key <= 90:  # A ~ Z
         number = key - 65
+    # Custom gesture mappings
     if key == 110:  # n (Inference Mode)
         mode = 0
     if key == 107:  # k (Capturing Landmark From Camera Mode)
@@ -653,5 +658,5 @@ def draw_info(image, fps, mode, number):
     return image
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
