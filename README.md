@@ -42,6 +42,8 @@ This project enables users to spell out words and build sentences in real time u
    ```
 
 ## 💡 Usage
+
+### Local OpenCV Demo
 - Run the main script:
   ```bash
   python Onworking.py
@@ -49,6 +51,18 @@ This project enables users to spell out words and build sentences in real time u
 - Show ASL gestures to your webcam.
 - Press `SPACE` to complete a word, `ENTER` to complete a sentence, and `ESC` to exit.
 - The recognized text will be displayed and spoken aloud.
+
+### Streamlit Demo
+- Ensure you are using Python 3.10 or 3.11 for MediaPipe compatibility.
+- Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Launch the interactive web app:
+  ```bash
+  streamlit run streamlit_app.py
+  ```
+- Click **Start** in the WebRTC widget to enable your webcam, then use the on-screen controls to manage words and sentences. The **Speak sentence** button plays synthesized audio in the browser.
 
 ---
 

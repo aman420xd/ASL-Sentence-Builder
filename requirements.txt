@@ -9,3 +9,6 @@ scikit-learn
 matplotlib
 gTTS
 pygame
+streamlit
+streamlit-webrtc
+av

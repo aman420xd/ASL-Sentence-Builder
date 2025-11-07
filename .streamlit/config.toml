@@ -1,0 +1,9 @@
+[general]
+email = ""
+
+[server]
+enableCORS = false
+
+[python]
+version = "3.11"
+
