@@ -4,6 +4,6 @@ email = ""
 [server]
 enableCORS = false
 
-[python]
-version = "3.11"
+[runtime]
+python_version = "3.11"
 
